@@ -3,6 +3,16 @@ import nbformat
 from nbconvert import PythonExporter
 from nbconvert.preprocessors import ExecutePreprocessor
 from io import StringIO
+import altair as alt
+import pandas as pd
+import streamlit as st
+import numpy as np
+from spotlight.datasets.movielens import get_movielens_dataset
+from spotlight.datasets.synthetic import generate_sequential
+import torch
+from spotlight.factorization.explicit import ExplicitFactorizationModel
+from spotlight.cross_validation import random_train_test_split
+
 
 # Function to execute the notebook and capture the output
 def execute_notebook(notebook_path):
