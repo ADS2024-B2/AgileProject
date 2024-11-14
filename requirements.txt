@@ -1,4 +1,5 @@
-spotlight==0.1.6
+python==3.9.20
+git+https://github.com/maciejkula/spotlight.git#egg=spotlight
 streamlit
 pandas
 numpy
