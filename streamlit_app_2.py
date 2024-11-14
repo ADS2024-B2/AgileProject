@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import torch
+import spotlight.factorization
 
 @st.cache_resource  # Cache the model to avoid reloading it every time
 def load_model():
