@@ -1,7 +1,5 @@
-git+https://github.com/WillianFuks/spotlight.git#egg=spotlight
+spotlight=0.1.6
 streamlit
 pandas
 numpy
 torch
-scipy
-h5py
