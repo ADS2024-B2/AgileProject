@@ -1,6 +1,5 @@
-python==3.9.20
-git+https://github.com/maciejkula/spotlight.git#egg=spotlight
 streamlit
 pandas
 numpy
 torch
+spotlight==0.1.6
