@@ -1,4 +1,4 @@
-spotlight=0.1.6
+spotlight==0.1.6
 streamlit
 pandas
 numpy
