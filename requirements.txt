@@ -1,4 +1,4 @@
-spotlight
+git+https://github.com/maciejkula/spotlight.git#egg=spotlight
 streamlit
 pandas
 numpy
