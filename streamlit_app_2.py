@@ -1,15 +1,13 @@
-#!/usr/bin/env python3.9
+#!/usr/bin/env python
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 import torch
-import spotlight.factorization
 
 @st.cache_resource  # Cache the model to avoid reloading it every time
 def load_model():
     model = torch.load('models/spotlight_explicit_model.pth')
-    model.eval()  # Set the model to evaluation mode
     return model
 
 model = load_model()
@@ -25,7 +23,17 @@ full_data = load_full_data()
 st.title("Movie Recommender")
 
 # User input
-new_user = st.text_input("Enter user details or user ID:")
+new_user = st.text_input("Enter user ID:")
+
+# Ensure input is valid and convert to integer
+if new_user:
+    try:
+        new_user = int(new_user)  # Try to convert the input to an integer
+    except ValueError:
+        st.error("Please enter a valid number for the user ID.")  # Display an error if conversion fails
+else:
+    st.warning("Please enter a user ID.")  # Warn if the input is empty
+
 
 # Check if user input is provided before proceeding
 if new_user:
@@ -38,7 +46,7 @@ if new_user:
     random_5_indices = np.random.choice(top_50_indices, 5, replace=False)
 
     # Prepare DataFrame for recommendations
-    recs = pd.DataFrame(columns=['movie_title', 'IMDb_URL', 'genres_name'])
+    recs = pd.DataFrame(columns=['movie_title', 'genres_name', 'IMDb_URL'])
 
     for movie_recommendation in random_5_indices:
         # Get the first match row for the current recommendation
@@ -47,8 +55,8 @@ if new_user:
         # Add relevant information to recs
         recs.loc[len(recs)] = [
             row['movie_title'], 
-            row['IMDb_URL'], 
-            row['genres_name']
+            row['genres_name'],
+            row['IMDb_URL']
         ]
 
     # Display the recommendations
