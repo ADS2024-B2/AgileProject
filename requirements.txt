@@ -2,4 +2,3 @@ streamlit
 pandas
 numpy
 torch
-git+https://github.com/maciejkula/spotlight.git@master#egg=spotlight
