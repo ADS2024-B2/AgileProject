@@ -15,10 +15,10 @@ model = load_model()
 # Load the extended dataset
 @st.cache_data
 def load_full_data(): #includes fake data only website
-    return pd.read_csv('ratings_complet.csv', index_col=None)
+    return pd.read_csv('datasets/ratings_complet.csv', index_col=None)
 
 def load_user_data():
-    return pd.read_csv('users_metadata_complet.csv', index_col=None)
+    return pd.read_csv('datasets/users_metadata_complet.csv', index_col=None)
 
 full_data = load_full_data()
 user_data = load_user_data()
