@@ -62,7 +62,7 @@ if new_user:
             st.write("No profile data found for this user.")
 
     
-    # Show Recommendations if selected
+   # Show Recommendations if selected
     elif tab_selection == "Recommendations":
         # Make predictions and generate recommendations
         rating_prediction = model.predict(new_user)
@@ -84,12 +84,23 @@ if new_user:
                 row['genres_name'],
                 row['IMDb_URL']
             ]
+            
+        # Reset index and remove the old index column
+        recs = recs.reset_index(drop=True)
 
         # Display the recommendations
         st.subheader("Top Recommended Movies")
-        st.write(recs)
 
-    # Show Ratings if selected
+        # Display each movie's title, genre, and IMDb link
+        for _, row in recs.iterrows():
+            movie_title = row['movie_title']
+            genre_name = row['genres_name']
+            imdb_url = row['IMDb_URL']
+            
+            # Use Markdown to create clickable link
+            st.markdown(f"**{movie_title}**: {genre_name}")
+            st.markdown(f"[IMDb Link]({imdb_url})")
+        # Show Ratings if selected
     elif tab_selection == "Ratings":
         # Display ratings for this user from the full_data
         user_ratings = full_data[full_data['user_id'] == new_user]
