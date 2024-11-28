@@ -29,17 +29,49 @@ st.title("Movie Recommender")
 # User input
 new_user = st.text_input("Enter user ID:")
 
+# Show message if user ID is not entered
+if not new_user:
+    st.write("Please enter a user ID to get started.")
+
 # Ensure input is valid and convert to integer
 if new_user:
     try:
         new_user = int(new_user)  # Try to convert the input to an integer
     except ValueError:
         st.error("Please enter a valid number for the user ID.")  # Display an error if conversion fails
-else:
-    st.warning("Please enter a user ID.")  # Warn if the input is empty
+#else:
+    #st.warning("Please enter a user ID.")  # Warn if the input is empty
 
-# Streamlit Tabs simulation using radio buttons
-tab_selection = st.radio("Select Tab:", ["User Profile", "Recommendations", "Ratings"])
+if new_user:
+    tab_selection = st.radio("Select Option:", ["User Profile", "Recommendations", "Ratings"])
+else:
+    tab_selection = "Home"  # Default tab is Home (Trending Movies)
+
+# Function to get trending movies based on average rating
+def get_trending_movies():
+    # Group by movie_id and calculate average rating for each movie
+    movie_ratings = full_data.groupby('movie_id').agg({'rating': 'mean'}).reset_index()
+    
+    # Merge with the movie details from full_data to get movie titles
+    trending_movies = pd.merge(movie_ratings, full_data[['movie_id', 'movie_title']], on='movie_id', how='left')
+    
+    # Sort by average rating in descending order
+    trending_movies = trending_movies.sort_values(by='rating', ascending=False)
+    
+    # Get top 10 trending movies
+    trending_movies = trending_movies.head(10)
+    
+    return trending_movies[['movie_title', 'rating']]
+
+# Home Page: Show trending movies
+if tab_selection == "Home":
+    st.subheader("Trending Movies")
+    
+    # Get and display the top 10 trending movies
+    trending_movies = get_trending_movies()
+    
+    for index, row in trending_movies.iterrows():
+        st.markdown(f"**{row['movie_title']}**")
 
 # Ensure that a valid user ID has been provided before proceeding
 if new_user:
@@ -94,21 +126,38 @@ if new_user:
         # Display each movie's title, genre, and IMDb link
         for _, row in recs.iterrows():
             movie_title = row['movie_title']
-            genre_name = row['genres_name']
+            genre_name = row['genres_name']  # This should be a list or a string
             imdb_url = row['IMDb_URL']
-            
-            # Use Markdown to create clickable link
-            st.markdown(f"**{movie_title}**: {genre_name}")
-            st.markdown(f"[IMDb Link]({imdb_url})")
-        # Show Ratings if selected
+
+            # Check if genre_name is a string or a list
+            if isinstance(genre_name, str):
+                # If it's a string, split by commas if needed
+                genre_str = genre_name.replace("[", "").replace("]", "").replace("'", "").strip()
+            elif isinstance(genre_name, list):
+                # If it's a list, join the genres with a comma
+                genre_str = ', '.join(genre_name)
+
+            # Display movie title and genre name (no bold)
+            st.markdown(f"**{movie_title}**")  # Movie title bolded
+            st.markdown(f"{genre_str}")  # Genre list 
+            st.markdown(f"[IMDb Link]({imdb_url})")  # IMDb link as a clickable link
+
+
+   # Show Ratings if selected
     elif tab_selection == "Ratings":
         # Display ratings for this user from the full_data
         user_ratings = full_data[full_data['user_id'] == new_user]
 
         if not user_ratings.empty:
             st.subheader("User Ratings")
-            st.write(user_ratings[['movie_title', 'rating']])
+            
+            # Create a list of movie titles and ratings
+            for _, row in user_ratings.iterrows():
+                movie_title = row['movie_title']
+                rating = row['rating']
+                st.write(f"**{movie_title}**: {rating}")  # Display movie title and rating
         else:
             st.write("No ratings found for this user.")
-else:
-    st.write("Please enter a user ID to get recommendations.")
+
+#else:
+    #st.write("Please enter a user ID to get recommendations.")
