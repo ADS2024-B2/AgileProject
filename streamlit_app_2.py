@@ -4,7 +4,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import torch
-from libs.spotlight.spotlight.factorization.explicit import ExplicitFactorizationModel
+from spotlight.factorization.explicit import ExplicitFactorizationModel
 
 @st.cache_resource  # Cache the model to avoid reloading it every time
 def load_model():
