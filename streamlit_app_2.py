@@ -23,6 +23,11 @@ def load_user_data():
 full_data = load_full_data()
 user_data = load_user_data()
 
+# Genre filter selection (use available genres in the dataset)
+#all_genres = sorted(set([genre for genres in full_data['genres_name'] for genre in (genres if isinstance(genres, list) else genres.split(','))]))
+# Genre filter in the sidebar
+#selected_genre = st.sidebar.selectbox("Select Genre", ["All Genres"] + all_genres)
+
 # Streamlit app title
 st.title("Movie Recommender")
 
@@ -93,7 +98,7 @@ if new_user:
         else:
             st.write("No profile data found for this user.")
 
-    
+
    # Show Recommendations if selected
     elif tab_selection == "Recommendations":
         # Make predictions and generate recommendations
@@ -110,39 +115,45 @@ if new_user:
             # Get the first match row for the current recommendation
             row = full_data[full_data['movie_id'] == movie_recommendation].iloc[0]
             
-            # Add relevant information to recs
-            recs.loc[len(recs)] = [
-                row['movie_title'], 
-                row['genres_name'],
-                row['IMDb_URL']
-            ]
+            # Split the genres string into a list (if it's a string)
+            genres_list = row['genres_name']
+            if isinstance(genres_list, str):
+                genres_list = [genre.strip() for genre in genres_list.replace("[", "").replace("]", "").replace("'", "").split(",")]
             
+            # For each genre, add a row for the movie
+            for genre in genres_list:
+                new_row = pd.DataFrame({
+                    'movie_title': [row['movie_title']],
+                    'genres_name': [genre],
+                    'IMDb_URL': [row['IMDb_URL']]
+                })
+                # Use pd.concat() to append the new row
+                recs = pd.concat([recs, new_row], ignore_index=True)
+
         # Reset index and remove the old index column
         recs = recs.reset_index(drop=True)
 
-        # Display the recommendations
+        # Sort recommendations by genre
+        recs_sorted = recs.sort_values(by='genres_name')
+
+        # Display the recommendations grouped by genre
         st.subheader("Top Recommended Movies")
 
-        # Display each movie's title, genre, and IMDb link
-        for _, row in recs.iterrows():
-            movie_title = row['movie_title']
-            genre_name = row['genres_name']  # This should be a list or a string
-            imdb_url = row['IMDb_URL']
+        # Display each genre
+        for genre in sorted(recs_sorted['genres_name'].unique()):
+            # Filter the movies of this genre
+            genre_movies = recs_sorted[recs_sorted['genres_name'] == genre]
+            
+            st.markdown(f"### **{genre.capitalize()}**")  # Display the genre name (capitalized)
 
-            # Check if genre_name is a string or a list
-            if isinstance(genre_name, str):
-                # If it's a string, split by commas if needed
-                genre_str = genre_name.replace("[", "").replace("]", "").replace("'", "").strip()
-            elif isinstance(genre_name, list):
-                # If it's a list, join the genres with a comma
-                genre_str = ', '.join(genre_name)
+            for _, row in genre_movies.iterrows():
+                movie_title = row['movie_title']
+                imdb_url = row['IMDb_URL']
 
-            # Display movie title and genre name (no bold)
-            st.markdown(f"**{movie_title}**")  # Movie title bolded
-            st.markdown(f"{genre_str}")  # Genre list 
-            st.markdown(f"[IMDb Link]({imdb_url})")  # IMDb link as a clickable link
-
-
+                # Display movie title and IMDb link
+                st.markdown(f"**{movie_title}**")  # Movie title bolded
+                st.markdown(f"[IMDb Link]({imdb_url})")  # IMDb link as a clickable link
+   
    # Show Ratings if selected
     elif tab_selection == "Ratings":
         # Display ratings for this user from the full_data
