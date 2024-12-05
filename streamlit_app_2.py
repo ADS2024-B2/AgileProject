@@ -151,13 +151,26 @@ if new_user:
         if not user_ratings.empty:
             st.subheader("User Ratings")
             
-            # Create a list of movie titles and ratings
-            for _, row in user_ratings.iterrows():
+            # Sort the user ratings by 'rating' in descending order to show highly rated movies first
+            user_ratings_sorted = user_ratings.sort_values(by='rating', ascending=False)
+            
+            # Get the highest rating to mark the favorite
+            highest_rating = user_ratings_sorted.iloc[0]['rating']
+            
+            # Create a list of movie titles and ratings, sorted by rating
+            for _, row in user_ratings_sorted.iterrows():
                 movie_title = row['movie_title']
                 rating = row['rating']
-                st.write(f"**{movie_title}**: {rating}")  # Display movie title and rating
+                
+                # Check if the movie has the highest rating
+                if rating == highest_rating:
+                    # Mark as Favorite with a star emoji
+                    st.write(f"**{movie_title}**: {rating} ⭐ ")  # Display movie title, rating, and Favorite label
+                else:
+                    st.write(f"**{movie_title}**: {rating}")
         else:
             st.write("No ratings found for this user.")
+
 
 #else:
     #st.write("Please enter a user ID to get recommendations.")
