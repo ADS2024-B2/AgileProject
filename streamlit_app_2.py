@@ -14,14 +14,32 @@ model = load_model()
 
 # Load the extended dataset
 @st.cache_data
-def load_full_data(): #includes fake data only website
+def load_ratings_data(): #includes fake data only website
     return pd.read_csv('datasets/ratings_complet.csv', index_col=None)
 
+def load_full_movie_data():
+    return pd.read_csv('datasets/movies_metadata_complet_improve_version2.csv', index_col=None)
+
 def load_user_data():
-    return pd.read_csv('datasets/users_metadata_complet.csv', index_col=None)
+    return pd.read_csv('datasets/users_metadata_complet_version2.csv', index_col=None)
+
+def load_full_data():
+    # Load both datasets
+    ratings_data = load_ratings_data()
+    movies_metadata_data = load_full_movie_data()
+
+    # Select only the necessary columns from the ratings data
+    ratings_data = ratings_data[['movie_id', 'user_id', 'rating']]  # Keep movie_id, user_id, and rating
+
+    # Merge the datasets on 'movie_id'
+    merged_data = pd.merge(ratings_data, movies_metadata_data, on='movie_id', how='left')
+
+    # Return the merged data
+    return merged_data
 
 full_data = load_full_data()
 user_data = load_user_data()
+#movie_data = load_movie_data()
 
 # Genre filter selection (use available genres in the dataset)
 #all_genres = sorted(set([genre for genres in full_data['genres_name'] for genre in (genres if isinstance(genres, list) else genres.split(','))]))
@@ -58,7 +76,7 @@ def get_trending_movies():
     movie_ratings = full_data.groupby('movie_id').agg({'rating': 'mean'}).reset_index()
     
     # Merge with the movie details from full_data to get movie titles
-    trending_movies = pd.merge(movie_ratings, full_data[['movie_id', 'movie_title']], on='movie_id', how='left')
+    trending_movies = pd.merge(movie_ratings, full_data[['movie_id', 'movie_title', 'movie_IMDb_URL', 'movie_poster', 'movie_plot']], on='movie_id', how='left')
     
     # Sort by average rating in descending order
     trending_movies = trending_movies.sort_values(by='rating', ascending=False)
@@ -66,7 +84,7 @@ def get_trending_movies():
     # Get top 10 trending movies
     trending_movies = trending_movies.head(10)
     
-    return trending_movies[['movie_title', 'rating']]
+    return trending_movies[['movie_id', 'movie_title', 'movie_IMDb_URL', 'movie_poster', 'movie_plot']]
 
 # Home Page: Show trending movies
 if tab_selection == "Home":
@@ -74,9 +92,17 @@ if tab_selection == "Home":
     
     # Get and display the top 10 trending movies
     trending_movies = get_trending_movies()
-    
+
     for index, row in trending_movies.iterrows():
-        st.markdown(f"**{row['movie_title']}**")
+        # Movie title with IMDb link
+        st.markdown(f"**{row['movie_title']}** - [IMDb Link]({row['movie_IMDb_URL']})")
+
+        # Display the movie description
+        st.write(f"*{row['movie_plot']}*")
+
+        # Display the movie poster and IMDb link with the movie title
+        st.image(row['movie_poster'], width=200)  # Adjust the width as needed
+
 
 # Ensure that a valid user ID has been provided before proceeding
 if new_user:
@@ -93,8 +119,15 @@ if new_user:
             
             # Create a list of labels and values to display
             for column in user_info.index:
-                # Format the display with the column name and the corresponding value
-                st.write(f"{column}: {user_info[column]}")
+                if column == 'zip_code':  # Skip 'zipcode' column
+                    continue
+                elif column == 'city':  # Display city instead of zipcode
+                    city = user_info['city']  # Assuming 'city' exists in user_data
+                    st.write(f"City: {city}")
+                else:
+                    # Display other columns as usual
+                    st.write(f"{column}: {user_info[column]}")
+
         else:
             st.write("No profile data found for this user.")
 
@@ -109,7 +142,7 @@ if new_user:
         random_5_indices = np.random.choice(top_50_indices, 5, replace=False)
 
         # Prepare DataFrame for recommendations
-        recs = pd.DataFrame(columns=['movie_title', 'genres_name', 'IMDb_URL'])
+        recs = pd.DataFrame(columns=['movie_title', 'genres_name', 'movie_IMDb_URL'])
 
         for movie_recommendation in random_5_indices:
             # Get the first match row for the current recommendation
@@ -125,7 +158,9 @@ if new_user:
                 new_row = pd.DataFrame({
                     'movie_title': [row['movie_title']],
                     'genres_name': [genre],
-                    'IMDb_URL': [row['IMDb_URL']]
+                    'IMDb_URL': [row['movie_IMDb_URL']],
+                    'movie_poster': [row['movie_poster']],
+                    'movie_plot': [row['movie_plot']]
                 })
                 # Use pd.concat() to append the new row
                 recs = pd.concat([recs, new_row], ignore_index=True)
@@ -148,11 +183,19 @@ if new_user:
 
             for _, row in genre_movies.iterrows():
                 movie_title = row['movie_title']
-                imdb_url = row['IMDb_URL']
+                imdb_url = row['movie_IMDb_URL']
+                movie_poster = row['movie_poster']
+                movie_plot = row['movie_plot']
 
                 # Display movie title and IMDb link
-                st.markdown(f"**{movie_title}**")  # Movie title bolded
-                st.markdown(f"[IMDb Link]({imdb_url})")  # IMDb link as a clickable link
+                st.markdown(f"**{movie_title}** [IMDb Link]({imdb_url})")  # Movie title bolded
+                #st.markdown(f"[IMDb Link]({imdb_url})")  # IMDb link as a clickable link
+                st.write(f"*{movie_plot}*")
+
+                if isinstance(row['movie_poster'], str) and row['movie_poster'].startswith('http'):
+                    st.image(row['movie_poster'], width=100)
+                else:
+                    st.write("No valid image available")
    
    # Show Ratings if selected
     elif tab_selection == "Ratings":
@@ -172,13 +215,19 @@ if new_user:
             for _, row in user_ratings_sorted.iterrows():
                 movie_title = row['movie_title']
                 rating = row['rating']
+                imdb_url = row['movie_IMDb_URL']
+                movie_poster = row['movie_poster']
+                movie_plot = row['movie_plot']
                 
                 # Check if the movie has the highest rating
                 if rating == highest_rating:
                     # Mark as Favorite with a star emoji
-                    st.write(f"**{movie_title}**: {rating} ⭐ ")  # Display movie title, rating, and Favorite label
+                    st.write(f"**{movie_title}**: {rating} ⭐ [IMDb Link]({imdb_url})")  # Display movie title, rating, and Favorite label
+                    st.write(f"*{movie_plot}*") 
+                    st.image(row['movie_poster'], width=200)
+
                 else:
-                    st.write(f"**{movie_title}**: {rating}")
+                    st.write(f"**{movie_title}**: {rating} [IMDb Link]({imdb_url})")
         else:
             st.write("No ratings found for this user.")
 
