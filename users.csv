@@ -1,2 +1,2 @@
-user_id,username,password_hash
-4,milena1,b27efa31a25a8ec090058f211f2ddfdeb485903104a2e18dd4976d77d5196060
+user_id,email,password_hash
+3,irisvuko@gmail.com,6ac3c336e4094835293a3fed8a4b5fedde1b5e2626d9838fed50693bba00af0e

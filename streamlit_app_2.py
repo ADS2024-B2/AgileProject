@@ -55,13 +55,13 @@ def hash_password(password):
 def initialize_users_file():
     if not os.path.exists('users.csv'):
         # Create a new DataFrame if the file doesn't exist
-        users_df = pd.DataFrame(columns=['user_id', 'username', 'password_hash'])
+        users_df = pd.DataFrame(columns=['user_id', 'email', 'password_hash'])
         users_df.to_csv('users.csv', index=False)  # Save as an empty CSV file with headers
 
 # Call this function at the start of your app or before any user actions
 initialize_users_file()
 
-def register_user(username, password, user_id):
+def register_user(email, password, user_id):
     # Load the existing users data from the CSV
     users_df = pd.read_csv("users.csv")
     
@@ -76,7 +76,7 @@ def register_user(username, password, user_id):
     # Create a new user DataFrame
     new_user = pd.DataFrame({
         'user_id': [user_id],
-        'username': [username],
+        'email': [email],
         'password_hash': [hashed_password]
     })
     
@@ -85,11 +85,11 @@ def register_user(username, password, user_id):
     
     # Save the updated DataFrame back to CSV
     users_df.to_csv("users.csv", index=False)
-    print(f"User {username} registered successfully.")
+    print(f"User with email {email} registered successfully.")
     return True  # Return True to indicate success
 
 
-def authenticate_user(username, password):
+def authenticate_user(email, password):
     try:
         # Read user credentials from the CSV file
         users_df = pd.read_csv('users.csv')
@@ -102,13 +102,14 @@ def authenticate_user(username, password):
     hashed_password = hash_password(password)
     
     # Find the user by username
-    user = users_df[users_df['username'] == username]
-    
+    user = users_df[users_df['email'] == email]
+
     # If the user exists, compare the hashed password
     if not user.empty:
         stored_hash = user['password_hash'].values[0]
         if stored_hash == hashed_password:
-            return True, user['user_id'].values[0]  # User authenticated successfully
+            user_id = user['user_id'].values[0]
+            return True, user_id  # User authenticated successfully
     return False, None # Invalid username or password
 
 
@@ -128,13 +129,13 @@ if not st.session_state['user_authenticated']:
     action = st.radio("Choose an action", ["Login", "Register"])
     
     if action == "Register":
-        username = st.text_input("Create a Username")
+        email = st.text_input("Enter your Email")
         password = st.text_input("Create a Password", type="password")
         user_id = st.text_input("Enter your User ID")
 
         if st.button("Register"):
-            if username and password and user_id:
-                success = register_user(username, password, user_id)
+            if email and password and user_id:
+                success = register_user(email, password, user_id)
                 if success:
                     st.success("Registration successful! You can now log in.")
                 else:
@@ -143,29 +144,22 @@ if not st.session_state['user_authenticated']:
                 st.error("Please fill in all fields.")
     
     elif action == "Login":
-        username = st.text_input("Username")
+        email = st.text_input("Email")
         password = st.text_input("Password", type="password")
 
         if st.button("Login"):
-            if username and password:
-                success, user_id = authenticate_user(username, password)
+            if email and password:
+                success, user_id = authenticate_user(email, password)
                 if success:
                     st.session_state['user_authenticated'] = True
-                    st.session_state['current_user'] = username
+                    st.session_state['current_user'] = email
                     st.session_state['current_user_id'] = user_id
-                    st.success(f"Welcome back, {username}!")
+                    st.success(f"Welcome back, {email}!")
                 else:
                     st.error("Invalid username or password.")
             else:
                 st.error("Please fill in both fields.")
-# If the user is authenticated, show the recommender
-#if st.session_state['user_authenticated']:
-    #new_user = st.session_state['current_user']
 
-#if new_user:
-    #tab_selection = st.radio("Select Option:", ["User Profile", "Recommendations", "Ratings"])
-#else:
-    #tab_selection = "Home"  # Default tab is Home (Trending Movies)
 
 # User input and tabs for profile, recommendations, and ratings
 if st.session_state['user_authenticated']:
@@ -212,7 +206,11 @@ if st.session_state['user_authenticated']:
 
     if tab_selection == "User Profile":
         # Display the user's profile from the user data
-        user_profile = user_data[user_data['user_id'] == user_id]
+        user_id = st.session_state.get('current_user_id', None)
+
+        if user_id:
+            # Display the user's profile based on email
+            user_profile = user_data[user_data['user_id'] == user_id]
 
         if not user_profile.empty:
             st.subheader("User Profile")
@@ -237,122 +235,133 @@ if st.session_state['user_authenticated']:
 
     # Show Recommendations if selected
     elif tab_selection == "Recommendations":
-        # Cache the recommendations based on the user ID
-        @st.cache_data  # Cache the recommendations to avoid recalculating them each time
-        def generate_recommendations():
-            user_id = st.session_state.get('current_user_id', None)
+        email = st.session_state.get('current_user', None)
     
-            if user_id is None:
-                st.error("User not authenticated!")
-                return pd.DataFrame()  # Return an empty DataFrame if no user ID is found
-
-            # Make predictions and generate recommendations
-            rating_prediction = model.predict(user_id)
-
-            # Get indices of the top 50 highest values
-            top_50_indices = np.argsort(rating_prediction)[-50:][::-1]
-
-            # Set a random seed for reproducibility (based on user ID)
-            np.random.seed(user_id)  # Ensures deterministic random selection
-
-            # Select 5 random recommendations from the top 50
-            random_5_indices = np.random.choice(top_50_indices, 5, replace=False)
-
-            # Prepare DataFrame for recommendations
-            recs = pd.DataFrame(columns=['movie_title', 'genres_name', 'movie_IMDb_URL', 'movie_poster', 'movie_plot'])
-
-            for movie_recommendation in random_5_indices:
-                # Get the first match row for the current recommendation
-                row = full_data[full_data['movie_id'] == movie_recommendation].iloc[0]
-                
-                # Split the genres string into a list (if it's a string)
-                genres_list = row['genres_name']
-                if isinstance(genres_list, str):
-                    genres_list = [genre.strip() for genre in genres_list.replace("[", "").replace("]", "").replace("'", "").split(",")]
-                
-                # For each genre, add a row for the movie
-                for genre in genres_list:
-                    new_row = pd.DataFrame({
-                        'movie_title': [row['movie_title']],
-                        'genres_name': [genre],
-                        'IMDb_URL': [row['movie_IMDb_URL']],
-                        'movie_poster': [row['movie_poster']],
-                        'movie_plot': [row['movie_plot']]
-                    })
-                    # Use pd.concat() to append the new row
-                    recs = pd.concat([recs, new_row], ignore_index=True)
-
-            # Reset index and remove the old index column
-            recs = recs.reset_index(drop=True)
-
-            # Sort recommendations by genre
-            recs_sorted = recs.sort_values(by='genres_name')
-
-            return recs_sorted
-
-        # Call the cached function to get recommendations
-        recs_sorted = generate_recommendations()
-
-        st.subheader("Top Recommended Movies")
-
-        # Display each genre
-        for genre in sorted(recs_sorted['genres_name'].unique()):
-            # Filter the movies of this genre
-            genre_movies = recs_sorted[recs_sorted['genres_name'] == genre]
-            
-            st.markdown(f"### **{genre.capitalize()}**")  # Display the genre name (capitalized)
-
-            for _, row in genre_movies.iterrows():
-                movie_title = row['movie_title']
-                imdb_url = row['movie_IMDb_URL']
-                movie_poster = row['movie_poster']
-                movie_plot = row['movie_plot']
-
-                # Display movie title and IMDb link
-                st.markdown(f"**{movie_title}** [IMDb Link]({imdb_url})")  # Movie title bolded
-                st.write(f"*{movie_plot}*")
-
-                if isinstance(row['movie_poster'], str) and row['movie_poster'].startswith('http'):
-                    st.image(row['movie_poster'], width=100)
-                else:
-                    st.write("No valid image available")
-
-    # Show Ratings if selected
-    elif tab_selection == "Ratings":
-        # Ensure the user is authenticated and we have the current user ID
-        user_id = st.session_state.get('current_user_id', None)
+        if email:
+            # Get the user ID based on the email
+            user_id = st.session_state['current_user_id']
+            # Cache the recommendations based on the user ID
+            @st.cache_data  # Cache the recommendations to avoid recalculating them each time
+            def generate_recommendations():
+                user_id = st.session_state.get('current_user_id', None)
         
-        if user_id is None:
-            st.error("User not authenticated!")
-        else:
-            # Filter the ratings for this specific user
-            user_ratings = full_data[full_data['user_id'] == user_id]
+                if user_id is None:
+                    st.error("User not authenticated!")
+                    return pd.DataFrame()  # Return an empty DataFrame if no user ID is found
 
-            if not user_ratings.empty:
-                st.subheader("User Ratings")
+                # Make predictions and generate recommendations
+                rating_prediction = model.predict(user_id)
+
+                # Get indices of the top 50 highest values
+                top_50_indices = np.argsort(rating_prediction)[-50:][::-1]
+
+                # Set a random seed for reproducibility (based on user ID)
+                np.random.seed(user_id)  # Ensures deterministic random selection
+
+                # Select 5 random recommendations from the top 50
+                random_5_indices = np.random.choice(top_50_indices, 5, replace=False)
+
+                # Prepare DataFrame for recommendations
+                recs = pd.DataFrame(columns=['movie_title', 'genres_name', 'movie_IMDb_URL', 'movie_poster', 'movie_plot'])
+
+                for movie_recommendation in random_5_indices:
+                    # Get the first match row for the current recommendation
+                    row = full_data[full_data['movie_id'] == movie_recommendation].iloc[0]
+                    
+                    # Split the genres string into a list (if it's a string)
+                    genres_list = row['genres_name']
+                    if isinstance(genres_list, str):
+                        genres_list = [genre.strip() for genre in genres_list.replace("[", "").replace("]", "").replace("'", "").split(",")]
+                    
+                    # For each genre, add a row for the movie
+                    for genre in genres_list:
+                        new_row = pd.DataFrame({
+                            'movie_title': [row['movie_title']],
+                            'genres_name': [genre],
+                            'IMDb_URL': [row['movie_IMDb_URL']],
+                            'movie_poster': [row['movie_poster']],
+                            'movie_plot': [row['movie_plot']]
+                        })
+                        # Use pd.concat() to append the new row
+                        recs = pd.concat([recs, new_row], ignore_index=True)
+
+                # Reset index and remove the old index column
+                recs = recs.reset_index(drop=True)
+
+                # Sort recommendations by genre
+                recs_sorted = recs.sort_values(by='genres_name')
+
+                return recs_sorted
+
+            # Call the cached function to get recommendations
+            recs_sorted = generate_recommendations()
+
+            st.subheader("Top Recommended Movies")
+
+            # Display each genre
+            for genre in sorted(recs_sorted['genres_name'].unique()):
+                # Filter the movies of this genre
+                genre_movies = recs_sorted[recs_sorted['genres_name'] == genre]
                 
-                # Sort the user ratings by 'rating' in descending order to show highly rated movies first
-                user_ratings_sorted = user_ratings.sort_values(by='rating', ascending=False)
-                
-                # Get the highest rating to mark the favorite
-                highest_rating = user_ratings_sorted.iloc[0]['rating']
-                
-                # Create a list of movie titles and ratings, sorted by rating
-                for _, row in user_ratings_sorted.iterrows():
+                st.markdown(f"### **{genre.capitalize()}**")  # Display the genre name (capitalized)
+
+                for _, row in genre_movies.iterrows():
                     movie_title = row['movie_title']
-                    rating = row['rating']
                     imdb_url = row['movie_IMDb_URL']
                     movie_poster = row['movie_poster']
                     movie_plot = row['movie_plot']
-                    
-                    # Check if the movie has the highest rating
-                    if rating == highest_rating:
-                        # Mark as Favorite with a star emoji
-                        st.write(f"**{movie_title}**: {rating} ⭐ [IMDb Link]({imdb_url})")  # Display movie title, rating, and Favorite label
-                        st.write(f"*{movie_plot}*") 
-                        st.image(row['movie_poster'], width=200)
 
+                    # Display movie title and IMDb link
+                    st.markdown(f"**{movie_title}** [IMDb Link]({imdb_url})")  # Movie title bolded
+                    st.write(f"*{movie_plot}*")
+
+                    if isinstance(row['movie_poster'], str) and row['movie_poster'].startswith('http'):
+                        st.image(row['movie_poster'], width=100)
                     else:
-                        st.write(f"**{movie_title}**: {rating} [IMDb Link]({imdb_url})")
+                        st.write("No valid image available")
+
+    # Show Ratings if selected
+    elif tab_selection == "Ratings":
+        email = st.session_state.get('current_user', None)  # Get email of the current logged-in user
+
+        if email:
+            # Get the user ID based on the email
+            user_id = st.session_state['current_user_id']
+            
+            # Filter the ratings based on the user_id
+            user_ratings = full_data[full_data['user_id'] == user_id]
+            
+            if user_id is None:
+                st.error("User not authenticated!")
             else:
-                st.write("No ratings found for this user.")
+                # Filter the ratings for this specific user
+                user_ratings = full_data[full_data['user_id'] == user_id]
+
+                if not user_ratings.empty:
+                    st.subheader("User Ratings")
+                    
+                    # Sort the user ratings by 'rating' in descending order to show highly rated movies first
+                    user_ratings_sorted = user_ratings.sort_values(by='rating', ascending=False)
+                    
+                    # Get the highest rating to mark the favorite
+                    highest_rating = user_ratings_sorted.iloc[0]['rating']
+                    
+                    # Create a list of movie titles and ratings, sorted by rating
+                    for _, row in user_ratings_sorted.iterrows():
+                        movie_title = row['movie_title']
+                        rating = row['rating']
+                        imdb_url = row['movie_IMDb_URL']
+                        movie_poster = row['movie_poster']
+                        movie_plot = row['movie_plot']
+                        
+                        # Check if the movie has the highest rating
+                        if rating == highest_rating:
+                            # Mark as Favorite with a star emoji
+                            st.write(f"**{movie_title}**: {rating} ⭐ [IMDb Link]({imdb_url})")  # Display movie title, rating, and Favorite label
+                            st.write(f"*{movie_plot}*") 
+                            st.image(row['movie_poster'], width=200)
+
+                        else:
+                            st.write(f"**{movie_title}**: {rating} [IMDb Link]({imdb_url})")
+                else:
+                    st.write("No ratings found for this user.")
