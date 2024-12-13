@@ -134,44 +134,56 @@ if new_user:
 
    # Show Recommendations if selected
     elif tab_selection == "Recommendations":
-        # Make predictions and generate recommendations
-        rating_prediction = model.predict(new_user)
+        # Cache the recommendations based on the user ID
+        @st.cache_data  # Cache the recommendations to avoid recalculating them each time
+        def generate_recommendations():
+            # Make predictions and generate recommendations
+            rating_prediction = model.predict(new_user)
 
-        # Get indices of the top 50 highest values
-        top_50_indices = np.argsort(rating_prediction)[-50:][::-1]
-        random_5_indices = np.random.choice(top_50_indices, 5, replace=False)
+            # Get indices of the top 50 highest values
+            top_50_indices = np.argsort(rating_prediction)[-50:][::-1]
 
-        # Prepare DataFrame for recommendations
-        recs = pd.DataFrame(columns=['movie_title', 'genres_name', 'movie_IMDb_URL'])
+            # Set a random seed for reproducibility (based on user ID)
+            np.random.seed(new_user)  # Ensures deterministic random selection
 
-        for movie_recommendation in random_5_indices:
-            # Get the first match row for the current recommendation
-            row = full_data[full_data['movie_id'] == movie_recommendation].iloc[0]
-            
-            # Split the genres string into a list (if it's a string)
-            genres_list = row['genres_name']
-            if isinstance(genres_list, str):
-                genres_list = [genre.strip() for genre in genres_list.replace("[", "").replace("]", "").replace("'", "").split(",")]
-            
-            # For each genre, add a row for the movie
-            for genre in genres_list:
-                new_row = pd.DataFrame({
-                    'movie_title': [row['movie_title']],
-                    'genres_name': [genre],
-                    'IMDb_URL': [row['movie_IMDb_URL']],
-                    'movie_poster': [row['movie_poster']],
-                    'movie_plot': [row['movie_plot']]
-                })
-                # Use pd.concat() to append the new row
-                recs = pd.concat([recs, new_row], ignore_index=True)
+            # Select 5 random recommendations from the top 50
+            random_5_indices = np.random.choice(top_50_indices, 5, replace=False)
 
-        # Reset index and remove the old index column
-        recs = recs.reset_index(drop=True)
+            # Prepare DataFrame for recommendations
+            recs = pd.DataFrame(columns=['movie_title', 'genres_name', 'movie_IMDb_URL', 'movie_poster', 'movie_plot'])
 
-        # Sort recommendations by genre
-        recs_sorted = recs.sort_values(by='genres_name')
+            for movie_recommendation in random_5_indices:
+                # Get the first match row for the current recommendation
+                row = full_data[full_data['movie_id'] == movie_recommendation].iloc[0]
+                
+                # Split the genres string into a list (if it's a string)
+                genres_list = row['genres_name']
+                if isinstance(genres_list, str):
+                    genres_list = [genre.strip() for genre in genres_list.replace("[", "").replace("]", "").replace("'", "").split(",")]
+                
+                # For each genre, add a row for the movie
+                for genre in genres_list:
+                    new_row = pd.DataFrame({
+                        'movie_title': [row['movie_title']],
+                        'genres_name': [genre],
+                        'IMDb_URL': [row['movie_IMDb_URL']],
+                        'movie_poster': [row['movie_poster']],
+                        'movie_plot': [row['movie_plot']]
+                    })
+                    # Use pd.concat() to append the new row
+                    recs = pd.concat([recs, new_row], ignore_index=True)
 
-        # Display the recommendations grouped by genre
+            # Reset index and remove the old index column
+            recs = recs.reset_index(drop=True)
+
+            # Sort recommendations by genre
+            recs_sorted = recs.sort_values(by='genres_name')
+
+            return recs_sorted
+
+        # Call the cached function to get recommendations
+        recs_sorted = generate_recommendations()
+
         st.subheader("Top Recommended Movies")
 
         # Display each genre
@@ -189,7 +201,6 @@ if new_user:
 
                 # Display movie title and IMDb link
                 st.markdown(f"**{movie_title}** [IMDb Link]({imdb_url})")  # Movie title bolded
-                #st.markdown(f"[IMDb Link]({imdb_url})")  # IMDb link as a clickable link
                 st.write(f"*{movie_plot}*")
 
                 if isinstance(row['movie_poster'], str) and row['movie_poster'].startswith('http'):
