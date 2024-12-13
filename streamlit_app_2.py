@@ -4,6 +4,9 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import torch
+import hashlib
+import os
+
 
 @st.cache_resource  # Cache the model to avoid reloading it every time
 def load_model():
@@ -39,77 +42,177 @@ def load_full_data():
 
 full_data = load_full_data()
 user_data = load_user_data()
-#movie_data = load_movie_data()
 
-# Genre filter selection (use available genres in the dataset)
-#all_genres = sorted(set([genre for genres in full_data['genres_name'] for genre in (genres if isinstance(genres, list) else genres.split(','))]))
-# Genre filter in the sidebar
-#selected_genre = st.sidebar.selectbox("Select Genre", ["All Genres"] + all_genres)
+# Function to hash passwords (for security)
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+# Function to hash the password
+def hash_password(password):
+    return hashlib.sha256(password.encode('utf-8')).hexdigest()
+
+# Ensure 'users.csv' exists and has the correct headers
+def initialize_users_file():
+    if not os.path.exists('users.csv'):
+        # Create a new DataFrame if the file doesn't exist
+        users_df = pd.DataFrame(columns=['user_id', 'username', 'password_hash'])
+        users_df.to_csv('users.csv', index=False)  # Save as an empty CSV file with headers
+
+# Call this function at the start of your app or before any user actions
+initialize_users_file()
+
+def register_user(username, password, user_id):
+    # Load the existing users data from the CSV
+    users_df = pd.read_csv("users.csv")
+    
+    # Check if the user ID already exists
+    if user_id in users_df['user_id'].values:
+        print(f"User ID {user_id} already exists.")
+        return False  # Return False to indicate failure
+    
+    # Hash the password
+    hashed_password = hash_password(password)
+    
+    # Create a new user DataFrame
+    new_user = pd.DataFrame({
+        'user_id': [user_id],
+        'username': [username],
+        'password_hash': [hashed_password]
+    })
+    
+    # Append the new user data to the existing DataFrame
+    users_df = pd.concat([users_df, new_user], ignore_index=True)
+    
+    # Save the updated DataFrame back to CSV
+    users_df.to_csv("users.csv", index=False)
+    print(f"User {username} registered successfully.")
+    return True  # Return True to indicate success
+
+
+def authenticate_user(username, password):
+    try:
+        # Read user credentials from the CSV file
+        users_df = pd.read_csv('users.csv')
+    except FileNotFoundError:
+        # Handle the case if the CSV file doesn't exist
+        print("Users file not found!")
+        return False, None
+    
+    # Hash the entered password
+    hashed_password = hash_password(password)
+    
+    # Find the user by username
+    user = users_df[users_df['username'] == username]
+    
+    # If the user exists, compare the hashed password
+    if not user.empty:
+        stored_hash = user['password_hash'].values[0]
+        if stored_hash == hashed_password:
+            return True, user['user_id'].values[0]  # User authenticated successfully
+    return False, None # Invalid username or password
+
 
 # Streamlit app title
 st.title("Movie Recommender")
 
-# User input
-new_user = st.text_input("Enter user ID:")
+# Ensure session state keys are initialized
+if 'user_authenticated' not in st.session_state:
+    st.session_state['user_authenticated'] = False
+if 'current_user' not in st.session_state:
+    st.session_state['current_user'] = None
+if 'current_user_id' not in st.session_state:
+    st.session_state['current_user_id'] = None
 
-# Show message if user ID is not entered
-if not new_user:
-    st.write("Please enter a user ID to get started.")
+# User login or registration
+if not st.session_state['user_authenticated']:
+    action = st.radio("Choose an action", ["Login", "Register"])
+    
+    if action == "Register":
+        username = st.text_input("Create a Username")
+        password = st.text_input("Create a Password", type="password")
+        user_id = st.text_input("Enter your User ID")
 
-# Ensure input is valid and convert to integer
-if new_user:
-    try:
-        new_user = int(new_user)  # Try to convert the input to an integer
-    except ValueError:
-        st.error("Please enter a valid number for the user ID.")  # Display an error if conversion fails
+        if st.button("Register"):
+            if username and password and user_id:
+                success = register_user(username, password, user_id)
+                if success:
+                    st.success("Registration successful! You can now log in.")
+                else:
+                    st.error("User ID already exists.")
+            else:
+                st.error("Please fill in all fields.")
+    
+    elif action == "Login":
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+
+        if st.button("Login"):
+            if username and password:
+                success, user_id = authenticate_user(username, password)
+                if success:
+                    st.session_state['user_authenticated'] = True
+                    st.session_state['current_user'] = username
+                    st.session_state['current_user_id'] = user_id
+                    st.success(f"Welcome back, {username}!")
+                else:
+                    st.error("Invalid username or password.")
+            else:
+                st.error("Please fill in both fields.")
+# If the user is authenticated, show the recommender
+#if st.session_state['user_authenticated']:
+    #new_user = st.session_state['current_user']
+
+#if new_user:
+    #tab_selection = st.radio("Select Option:", ["User Profile", "Recommendations", "Ratings"])
 #else:
-    #st.warning("Please enter a user ID.")  # Warn if the input is empty
+    #tab_selection = "Home"  # Default tab is Home (Trending Movies)
 
-if new_user:
+# User input and tabs for profile, recommendations, and ratings
+if st.session_state['user_authenticated']:
+    user_id = st.session_state['current_user_id']
     tab_selection = st.radio("Select Option:", ["User Profile", "Recommendations", "Ratings"])
-else:
-    tab_selection = "Home"  # Default tab is Home (Trending Movies)
-
-# Function to get trending movies based on average rating
-def get_trending_movies():
-    # Group by movie_id and calculate average rating for each movie
-    movie_ratings = full_data.groupby('movie_id').agg({'rating': 'mean'}).reset_index()
-    
-    # Merge with the movie details from full_data to get movie titles
-    trending_movies = pd.merge(movie_ratings, full_data[['movie_id', 'movie_title', 'movie_IMDb_URL', 'movie_poster', 'movie_plot']], on='movie_id', how='left')
-    
-    # Sort by average rating in descending order
-    trending_movies = trending_movies.sort_values(by='rating', ascending=False)
-    
-    # Get top 10 trending movies
-    trending_movies = trending_movies.head(10)
-    
-    return trending_movies[['movie_id', 'movie_title', 'movie_IMDb_URL', 'movie_poster', 'movie_plot']]
-
-# Home Page: Show trending movies
-if tab_selection == "Home":
-    st.subheader("Trending Movies")
-    
-    # Get and display the top 10 trending movies
-    trending_movies = get_trending_movies()
-
-    for index, row in trending_movies.iterrows():
-        # Movie title with IMDb link
-        st.markdown(f"**{row['movie_title']}** - [IMDb Link]({row['movie_IMDb_URL']})")
-
-        # Display the movie description
-        st.write(f"*{row['movie_plot']}*")
-
-        # Display the movie poster and IMDb link with the movie title
-        st.image(row['movie_poster'], width=200)  # Adjust the width as needed
 
 
-# Ensure that a valid user ID has been provided before proceeding
-if new_user:
-    # Prepare user profile
+    # Function to get trending movies based on average rating
+    def get_trending_movies():
+        # Group by movie_id and calculate average rating for each movie
+        movie_ratings = full_data.groupby('movie_id').agg({'rating': 'mean'}).reset_index()
+        
+        # Merge with the movie details from full_data to get movie titles
+        trending_movies = pd.merge(movie_ratings, full_data[['movie_id', 'movie_title', 'movie_IMDb_URL', 'movie_poster', 'movie_plot']], on='movie_id', how='left')
+        
+        # Drop duplicate movies (if there are multiple rows for the same movie)
+        trending_movies = trending_movies.drop_duplicates(subset=['movie_id'])
+
+        # Sort by average rating in descending order
+        trending_movies = trending_movies.sort_values(by='rating', ascending=False)
+        
+        # Get top 10 trending movies
+        trending_movies = trending_movies.head(10)
+        
+        return trending_movies[['movie_id', 'movie_title', 'movie_IMDb_URL', 'movie_poster', 'movie_plot']]
+
+    # Home Page: Show trending movies
+    if tab_selection == "Home":
+        st.subheader("Trending Movies")
+        
+        # Get and display the top 10 trending movies
+        trending_movies = get_trending_movies()
+
+        for index, row in trending_movies.iterrows():
+            # Movie title with IMDb link
+            st.markdown(f"**{row['movie_title']}** - [IMDb Link]({row['movie_IMDb_URL']})")
+
+            # Display the movie description
+            st.write(f"*{row['movie_plot']}*")
+
+            # Display the movie poster and IMDb link with the movie title
+            st.image(row['movie_poster'], width=200)  # Adjust the width as needed
+
+
     if tab_selection == "User Profile":
         # Display the user's profile from the user data
-        user_profile = user_data[user_data['user_id'] == new_user]
+        user_profile = user_data[user_data['user_id'] == user_id]
 
         if not user_profile.empty:
             st.subheader("User Profile")
@@ -132,19 +235,25 @@ if new_user:
             st.write("No profile data found for this user.")
 
 
-   # Show Recommendations if selected
+    # Show Recommendations if selected
     elif tab_selection == "Recommendations":
         # Cache the recommendations based on the user ID
         @st.cache_data  # Cache the recommendations to avoid recalculating them each time
         def generate_recommendations():
+            user_id = st.session_state.get('current_user_id', None)
+    
+            if user_id is None:
+                st.error("User not authenticated!")
+                return pd.DataFrame()  # Return an empty DataFrame if no user ID is found
+
             # Make predictions and generate recommendations
-            rating_prediction = model.predict(new_user)
+            rating_prediction = model.predict(user_id)
 
             # Get indices of the top 50 highest values
             top_50_indices = np.argsort(rating_prediction)[-50:][::-1]
 
             # Set a random seed for reproducibility (based on user ID)
-            np.random.seed(new_user)  # Ensures deterministic random selection
+            np.random.seed(user_id)  # Ensures deterministic random selection
 
             # Select 5 random recommendations from the top 50
             random_5_indices = np.random.choice(top_50_indices, 5, replace=False)
@@ -207,42 +316,43 @@ if new_user:
                     st.image(row['movie_poster'], width=100)
                 else:
                     st.write("No valid image available")
-   
-   # Show Ratings if selected
+
+    # Show Ratings if selected
     elif tab_selection == "Ratings":
-        # Display ratings for this user from the full_data
-        user_ratings = full_data[full_data['user_id'] == new_user]
-
-        if not user_ratings.empty:
-            st.subheader("User Ratings")
-            
-            # Sort the user ratings by 'rating' in descending order to show highly rated movies first
-            user_ratings_sorted = user_ratings.sort_values(by='rating', ascending=False)
-            
-            # Get the highest rating to mark the favorite
-            highest_rating = user_ratings_sorted.iloc[0]['rating']
-            
-            # Create a list of movie titles and ratings, sorted by rating
-            for _, row in user_ratings_sorted.iterrows():
-                movie_title = row['movie_title']
-                rating = row['rating']
-                imdb_url = row['movie_IMDb_URL']
-                movie_poster = row['movie_poster']
-                movie_plot = row['movie_plot']
-                
-                # Check if the movie has the highest rating
-                if rating == highest_rating:
-                    # Mark as Favorite with a star emoji
-                    st.write(f"**{movie_title}**: {rating} ⭐ [IMDb Link]({imdb_url})")  # Display movie title, rating, and Favorite label
-                    st.write(f"*{movie_plot}*") 
-                    st.image(row['movie_poster'], width=200)
-
-                else:
-                    st.write(f"**{movie_title}**: {rating} [IMDb Link]({imdb_url})")
+        # Ensure the user is authenticated and we have the current user ID
+        user_id = st.session_state.get('current_user_id', None)
+        
+        if user_id is None:
+            st.error("User not authenticated!")
         else:
-            st.write("No ratings found for this user.")
+            # Filter the ratings for this specific user
+            user_ratings = full_data[full_data['user_id'] == user_id]
 
+            if not user_ratings.empty:
+                st.subheader("User Ratings")
+                
+                # Sort the user ratings by 'rating' in descending order to show highly rated movies first
+                user_ratings_sorted = user_ratings.sort_values(by='rating', ascending=False)
+                
+                # Get the highest rating to mark the favorite
+                highest_rating = user_ratings_sorted.iloc[0]['rating']
+                
+                # Create a list of movie titles and ratings, sorted by rating
+                for _, row in user_ratings_sorted.iterrows():
+                    movie_title = row['movie_title']
+                    rating = row['rating']
+                    imdb_url = row['movie_IMDb_URL']
+                    movie_poster = row['movie_poster']
+                    movie_plot = row['movie_plot']
+                    
+                    # Check if the movie has the highest rating
+                    if rating == highest_rating:
+                        # Mark as Favorite with a star emoji
+                        st.write(f"**{movie_title}**: {rating} ⭐ [IMDb Link]({imdb_url})")  # Display movie title, rating, and Favorite label
+                        st.write(f"*{movie_plot}*") 
+                        st.image(row['movie_poster'], width=200)
 
-#else:
-    #st.write("Please enter a user ID to get recommendations.")
-
+                    else:
+                        st.write(f"**{movie_title}**: {rating} [IMDb Link]({imdb_url})")
+            else:
+                st.write("No ratings found for this user.")
