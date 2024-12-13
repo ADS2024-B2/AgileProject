@@ -6,19 +6,33 @@ from spotlight.factorization.explicit import ExplicitFactorizationModel
 from spotlight.cross_validation import random_train_test_split
 from spotlight.evaluation import rmse_score
 
-# Replace with the correct MongoDB URI
-mongo_uri = "mongodb://localhost:27017"  # For host-based MongoDB
-# If MongoDB is in a Docker container, use "mongodb" as the host, or use the Docker network name
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
 
-client = MongoClient(mongo_uri)
-db = client['your_database']  # Replace with your database name
-collection = db['your_collection']  # Replace with your collection name
+uri = "mongodb+srv://ghitaoudrhiri02:ghitaoudrhiri02@cluster0.fllnb.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
-# Find all documents in the collection
-documents = collection.find()
+# Create a new client and connect to the server
+client = MongoClient(uri, server_api=ServerApi('1'))
 
-# Get user ratings matrix
-dataset = documents['????']
+# Send a ping to confirm a successful connection
+try:
+   client.admin.command('ping')
+   # print("Pinged your deployment. You successfully connected to MongoDB!")
+except Exception as e:
+   print(e)
+
+db =  client["AGILE"]
+collection = db["ratings"]
+
+# Retrieve all documents from the collection
+data = list(collection.find({}))
+
+# Convert the data to a pandas DataFrame
+dataset = pd.DataFrame(data)
+
+# Drop the MongoDB-specific _id field (optional)
+if '_id' in dataset.columns:
+    dataset = dataset.drop('_id', axis=1)
 
 model = ExplicitFactorizationModel(loss='regression',
                                    embedding_dim=128,  # latent dimensionality
