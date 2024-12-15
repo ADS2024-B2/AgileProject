@@ -1,4 +1,4 @@
-user_id,age,gender,occupation,zip_code,first_name,name,email,preferred_genre,best_rated_movie,city
+user_id,age,gender,occupation,zip_code,first_name,last_name,email,preferred_genre,best_rated_movie,city
 1,24,M,technician,85711,Wesley,Leonard,wesley.leonard@gmail.com,Drama,202,Tucson
 2,53,F,other,94043,Angela,Anderson,angela.anderson@gmail.com,Drama,251,Mountain View
 3,23,M,writer,32067,Ronald,Miller,ronald.miller@gmail.com,Drama,328,Orange Park

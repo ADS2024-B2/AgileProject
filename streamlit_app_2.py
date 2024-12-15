@@ -41,11 +41,6 @@ full_data = load_full_data()
 user_data = load_user_data()
 #movie_data = load_movie_data()
 
-# Genre filter selection (use available genres in the dataset)
-#all_genres = sorted(set([genre for genres in full_data['genres_name'] for genre in (genres if isinstance(genres, list) else genres.split(','))]))
-# Genre filter in the sidebar
-#selected_genre = st.sidebar.selectbox("Select Genre", ["All Genres"] + all_genres)
-
 # Streamlit app title
 st.title("Movie Recommender")
 
@@ -89,6 +84,50 @@ def get_trending_movies():
     
     return trending_movies[['movie_id', 'movie_title', 'movie_IMDb_URL', 'movie_poster', 'movie_plot']]
 
+@st.cache_data  # Cache the recommendations so they don't change every time
+def get_recommendations(user_id):
+    # Make predictions and generate recommendations
+    rating_prediction = model.predict(user_id)
+
+    # Get indices of the top 50 highest values
+    top_50_indices = np.argsort(rating_prediction)[-50:][::-1]
+    random_5_indices = np.random.choice(top_50_indices, 5, replace=False)
+
+    # Prepare DataFrame for recommendations
+    recs = pd.DataFrame(columns=['movie_title', 'genres_name', 'movie_IMDb_URL'])
+
+    for movie_recommendation in random_5_indices:
+        # Get the first match row for the current recommendation
+        row = full_data[full_data['movie_id'] == movie_recommendation].iloc[0]
+    
+        # Clean IMDb URL just in case
+        imdb_url = str(row['movie_IMDb_URL']).strip()
+
+        # Split the genres string into a list (if it's a string)
+        genres_list = row['genres_name']
+        if isinstance(genres_list, str):
+            genres_list = [genre.strip() for genre in genres_list.replace("[", "").replace("]", "").replace("'", "").split(",")]
+        
+        # For each genre, add a row for the movie
+        for genre in genres_list:
+            new_row = pd.DataFrame({
+                'movie_title': [row['movie_title']],
+                'genres_name': [genre],
+                'IMDb_URL': [imdb_url],
+                'movie_poster': [row['movie_poster']],
+                'movie_plot': [row['movie_plot']]
+            })
+            # Use pd.concat() to append the new row
+            recs = pd.concat([recs, new_row], ignore_index=True)
+
+    # Reset index and remove the old index column
+    recs = recs.reset_index(drop=True)
+
+    # Sort recommendations by genre
+    recs_sorted = recs.sort_values(by='genres_name')
+
+    return recs_sorted
+
 # Home Page: Show trending movies
 if tab_selection == "Home":
     st.subheader("Trending Movies")
@@ -120,93 +159,57 @@ if new_user:
         if not user_profile.empty:
             st.subheader("User Profile")
             
-            # Loop through each column and display as a list
-            user_info = user_profile.iloc[0]  # Get the first row (since user_id is unique)
-            
-            # Create a list of labels and values to display
-            for column in user_info.index:
-                if column == 'zip_code':  # Skip 'zipcode' column
-                    continue
-                elif column == 'city':  # Display city instead of zipcode
-                    city = user_info['city']  # Assuming 'city' exists in user_data
-                    st.write(f"City: {city}")
-                else:
-                    # Display other columns as usual
-                    st.write(f"{column}: {user_info[column]}")
+            # Get the first row (since user_id is unique)
+            user_info = user_profile.iloc[0]  
 
+            # List of columns to display
+            columns_to_display = ['user_id', 'first_name', 'last_name', 'email', 'preferred_genre']
+
+            # Loop through the selected columns and display the information
+            for column in columns_to_display:
+                # Check if the column exists in the user profile data
+                if column in user_info.index:
+                    st.write(f"**{column.replace('_', ' ').title()}:** {user_info[column]}")
+                else:
+                    st.write(f"**{column.replace('_', ' ').title()}:** Not available")
         else:
             st.write("No profile data found for this user.")
 
 
    # Show Recommendations if selected
     elif tab_selection == "Recommendations":
-        # Make predictions and generate recommendations
-        rating_prediction = model.predict(new_user)
+        # Get and display recommendations
+        recs_sorted = get_recommendations(new_user)
 
-        # Get indices of the top 50 highest values
-        top_50_indices = np.argsort(rating_prediction)[-50:][::-1]
-        random_5_indices = np.random.choice(top_50_indices, 5, replace=False)
-
-        # Prepare DataFrame for recommendations
-        recs = pd.DataFrame(columns=['movie_title', 'genres_name', 'movie_IMDb_URL'])
-
-        for movie_recommendation in random_5_indices:
-            # Get the first match row for the current recommendation
-            row = full_data[full_data['movie_id'] == movie_recommendation].iloc[0]
-        
-            # clean imdb url justincase
-            imdb_url = str(row['movie_IMDb_URL']).strip()
-
-            # Split the genres string into a list (if it's a string)
-            genres_list = row['genres_name']
-            if isinstance(genres_list, str):
-                genres_list = [genre.strip() for genre in genres_list.replace("[", "").replace("]", "").replace("'", "").split(",")]
-            
-            # For each genre, add a row for the movie
-            for genre in genres_list:
-                new_row = pd.DataFrame({
-                    'movie_title': [row['movie_title']],
-                    'genres_name': [genre],
-                    'IMDb_URL': [imdb_url],
-                    'movie_poster': [row['movie_poster']],
-                    'movie_plot': [row['movie_plot']]
-                })
-                # Use pd.concat() to append the new row
-                recs = pd.concat([recs, new_row], ignore_index=True)
-
-        # Reset index and remove the old index column
-        recs = recs.reset_index(drop=True)
-
-        # Sort recommendations by genre
-        recs_sorted = recs.sort_values(by='genres_name')
-
-        # Display the recommendations grouped by genre
         st.subheader("Top Recommended Movies")
 
-        # Display each genre
-        for genre in sorted(recs_sorted['genres_name'].unique()):
-            # Filter the movies of this genre
-            genre_movies = recs_sorted[recs_sorted['genres_name'] == genre]
-            
-            st.markdown(f"### **{genre.capitalize()}**")  # Display the genre name (capitalized)
+        # Get all unique genres from the recommendations
+        genres = sorted(recs_sorted['genres_name'].unique())
 
-            for _, row in genre_movies.iterrows():
-                movie_title = row['movie_title']
-                imdb_url = row['IMDb_URL']
-                movie_poster = row['movie_poster']
-                movie_plot = row['movie_plot']
+        # Genre selection for filtering recommendations
+        selected_genre = st.selectbox("Select a Genre", ["All Genres"] + genres)
 
-                # Display movie title and IMDb link
-                st.markdown(f"**{movie_title}**: [IMDb Link]({imdb_url})")
-                #st.markdown(f"[IMDb Link]({imdb_url})")  # IMDb link as a clickable link
-                st.write(f"*{movie_plot}*")
-
-                if isinstance(row['movie_poster'], str) and row['movie_poster'].startswith('http'):
-                    st.image(row['movie_poster'], width=100)
-                else:
-                    st.write("~~No image available~~")
+        if selected_genre != "All Genres":
+            # Filter recommendations based on selected genre
+            filtered_recs = recs_sorted[recs_sorted['genres_name'] == selected_genre]
         else:
-            st.write("No recommendations found for this user.")
+            filtered_recs = recs_sorted
+
+        # Display filtered recommendations
+        for _, row in filtered_recs.iterrows():
+            movie_title = row['movie_title']
+            imdb_url = row['IMDb_URL']
+            movie_poster = row['movie_poster']
+            movie_plot = row['movie_plot']
+
+            # Display movie title and IMDb link
+            st.markdown(f"**{movie_title}**: [IMDb Link]({imdb_url})")
+            st.write(f"*{movie_plot}*")
+
+            if isinstance(row['movie_poster'], str) and row['movie_poster'].startswith('http'):
+                st.image(row['movie_poster'], width=100)
+            else:
+                st.write("~~No image available~~")
 
    # Show Ratings if selected
     elif tab_selection == "Ratings":
