@@ -3,4 +3,5 @@ pandas
 numpy
 torch
 scikit-learn
+pymongo
 git+https://github.com/maciejkula/spotlight.git@master#egg=spotlight

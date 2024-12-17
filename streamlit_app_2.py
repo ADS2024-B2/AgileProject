@@ -4,6 +4,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import torch
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
 
 @st.cache_resource  # Cache the model to avoid reloading it every time
 def load_model():
@@ -12,21 +14,58 @@ def load_model():
 
 model = load_model()
 
+# Connect to MongoDB for datasets
+uri = "mongodb+srv://ghitaoudrhiri02:ghitaoudrhiri02@cluster0.fllnb.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+client = MongoClient(uri, server_api=ServerApi('1'))
+# Send a ping to confirm a successful connection
+try:
+    client.admin.command('ping')
+except Exception as e:
+    print(e)
+db =  client["AGILE"]
+
 # Load the extended dataset
 @st.cache_data
-def load_ratings_data(): #includes fake data only website
-    return pd.read_csv('datasets/ratings_complet.csv', index_col=None)
+def load_ratings_data(): 
 
-def load_full_movie_data():
-    return pd.read_csv('datasets/movies_metadata_complet_improve_version2.csv', index_col=None)
+    # Get sub database from mongo db
+    data = list(db['ratings'].find({}))
+    df = pd.DataFrame(data)
 
-def load_user_data():
-    return pd.read_csv('datasets/users_metadata_complet_version2.csv', index_col=None)
+    # Drop the MongoDB-specific _id field
+    if '_id' in df.columns:
+        df = df.drop('_id', axis=1)
 
-def load_full_data():
+    return df
+
+def load_full_movie_data(db):
+    
+    # Get sub database from mongo db
+    data = list(db['movie'].find({}))
+    df = pd.DataFrame(data)
+
+    # Drop the MongoDB-specific _id field
+    if '_id' in df.columns:
+        df = df.drop('_id', axis=1)
+
+    return df
+
+def load_user_data(db):
+    
+    # Get sub database from mongo db
+    data = list(db['user'].find({}))
+    df = pd.DataFrame(data)
+
+    # Drop the MongoDB-specific _id field
+    if '_id' in df.columns:
+        df = df.drop('_id', axis=1)
+
+    return df
+
+def load_full_data(db):
     # Load both datasets
-    ratings_data = load_ratings_data()
-    movies_metadata_data = load_full_movie_data()
+    ratings_data = load_ratings_data(db)
+    movies_metadata_data = load_full_movie_data(db)
 
     # Select only the necessary columns from the ratings data
     ratings_data = ratings_data[['movie_id', 'user_id', 'rating']]  # Keep movie_id, user_id, and rating
@@ -37,8 +76,8 @@ def load_full_data():
     # Return the merged data
     return merged_data
 
-full_data = load_full_data()
-user_data = load_user_data()
+full_data = load_full_data(db)
+user_data = load_user_data(db)
 #movie_data = load_movie_data()
 
 # Genre filter selection (use available genres in the dataset)
