@@ -1,0 +1,4 @@
+user_id,age,gender,occupation,zip_code,first_name,last_name,email,preferred_genre,best_rated_movie,city
+944,23,F,Dancer,8025,Iris,Vukovic,irisvuko@gmail.com,,,Barcelona
+945,22,F,Student,95008,Milena,Pesic,milenapesic@gmail.com,,,Los Gatos
+946,24,F,Fashion Designer,08025,Eva,Callejas,evacallejasgarcia@gmail.com,NaN,NaN,BCN
