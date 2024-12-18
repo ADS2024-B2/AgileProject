@@ -26,7 +26,7 @@ db =  client["AGILE"]
 
 # Load the extended dataset
 @st.cache_data
-def load_ratings_data(): 
+def load_ratings_data(_db): 
 
     # Get sub database from mongo db
     data = list(db['ratings'].find({}))
@@ -38,7 +38,7 @@ def load_ratings_data():
 
     return df
 
-def load_full_movie_data(db):
+def load_full_movie_data(_db):
     
     # Get sub database from mongo db
     data = list(db['movie'].find({}))
@@ -50,7 +50,7 @@ def load_full_movie_data(db):
 
     return df
 
-def load_user_data(db):
+def load_user_data(_db):
     
     # Get sub database from mongo db
     data = list(db['user'].find({}))
