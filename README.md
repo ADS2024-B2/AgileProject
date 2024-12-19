@@ -15,4 +15,4 @@ You will need Docker installed for this!
 > docker run -p 8501:8501 movie_recommender:1
 - Test the streamlit app:
 
-Just navigate to http://localhost:8501 from your browser and dream on! 
+Just navigate to http://localhost:8501 from your browser and dream on!
