@@ -31,56 +31,50 @@ def load_new_user_data():
 
 # Function to register a new user
 def register_user(email, age, gender, occupation, zip_code, first_name, last_name, city):
-    try:
-        # Load all existing user data from 'users_metadata_complet_version2.csv' to get max user_id
-        user_data = load_user_data()
-        new_user_data = load_new_user_data()
+    
+    # Load all existing user data from 'users_metadata_complet_version2.csv' to get max user_id
+    user_data = load_user_data()
+    new_user_data = load_new_user_data()
 
-        # Check if the email already exists in either the main or new user dataset
-        if email in user_data['email'].values or email in new_user_data['email'].values:
-            st.warning("This email is already registered. Please log in instead.")
-            return None  # Return None to indicate registration should not proceed
+    # Check if the email already exists in either the main or new user dataset
+    if email in user_data['email'].values or email in new_user_data['email'].values:
+        st.warning("This email is already registered. Please log in instead.")
+        return None  # Return None to indicate registration should not proceed
 
-        # Calculate new user_id by considering both datasets (existing and new users)
-        max_existing_user_id = user_data['user_id'].max() if not user_data.empty else 0
-        max_new_user_id = new_user_data['user_id'].max() if not new_user_data.empty else 0
-        new_user_id = max(max_existing_user_id, max_new_user_id) + 1  # Assign the next available ID
+    # Calculate new user_id by considering both datasets (existing and new users)
+    max_existing_user_id = user_data['user_id'].max() if not user_data.empty else 0
+    max_new_user_id = new_user_data['user_id'].max() if not new_user_data.empty else 0
+    new_user_id = max(max_existing_user_id, max_new_user_id) + 1  # Assign the next available ID
 
-        # Create the new user dictionary
-        new_user = {
-            'user_id': new_user_id,
-            'age': age,
-            'gender': gender,
-            'occupation': occupation,
-            'zip_code': zip_code,
-            'first_name': first_name,
-            'last_name': last_name,
-            'email': email,
-            'preferred_genre': 'NaN',
-            'best_rated_movie': 'NaN',
-            'city': city
-        }
-        # Convert the new user to a DataFrame
-        new_user_df = pd.DataFrame([new_user])
+    # Create the new user dictionary
+    new_user = {
+        'user_id': new_user_id,
+        'age': age,
+        'gender': gender,
+        'occupation': occupation,
+        'zip_code': zip_code,
+        'first_name': first_name,
+        'last_name': last_name,
+        'email': email,
+        'preferred_genre': 'NaN',
+        'best_rated_movie': 'NaN',
+        'city': city
+    }
+    # Convert the new user to a DataFrame
+    new_user_df = pd.DataFrame([new_user])
 
-        #user_data = pd.concat([user_data, new_user_df], ignore_index=True)
-        #user_data.to_csv('datasets/users_metadata_complet_version2.csv', index=False)
+    #user_data = pd.concat([user_data, new_user_df], ignore_index=True)
+    #user_data.to_csv('datasets/users_metadata_complet_version2.csv', index=False)
 
-        new_user_data = pd.concat([new_user_data, new_user_df], ignore_index=True)
-        new_user_data.to_csv(NEW_USER_DATA_FILE, index=False)
+    new_user_data = pd.concat([new_user_data, new_user_df], ignore_index=True)
+    new_user_data.to_csv(NEW_USER_DATA_FILE, index=False)
 
-        # Clear the cache to reload the new user data
-        st.cache_data.clear()  # This forces the data to be reloaded the next time it's accessed
-        
-        return new_user_id  # Return the new user ID
+    # Clear the cache to reload the new user data
+    st.cache_data.clear()  # This forces the data to be reloaded the next time it's accessed
+    
+    return new_user_id  # Return the new user ID
 
-    except ValueError as e:
-        # If the error is because the user_id is not valid in the model, handle gracefully
-        if "Maximum user id greater" in str(e):
-            return pd.DataFrame(), []  # Return empty DataFrame and empty list, indicating no recommendations
-        else:
-            raise e  # Re-raise the error if it's something else
-
+    
 def login_user(email, password):
     # Load user data from both the main users and new users CSV files
     user_data = load_user_data()  # Existing users
@@ -143,59 +137,65 @@ def get_trending_movies(full_data):
 # Function to get recommendations (example placeholder)
 @st.cache_data
 def get_recommendations(user_id):
-    model = load_model()
-    full_data = load_full_data()
+    try: 
+        model = load_model()
+        full_data = load_full_data()
 
-    # Make predictions and generate recommendations
-    rating_prediction = model.predict(user_id)
+        # Make predictions and generate recommendations
+        rating_prediction = model.predict(user_id)
 
-    # Get indices of the top 50 highest values
-    top_50_indices = np.argsort(rating_prediction)[-50:][::-1]
-    random_5_indices = np.random.choice(top_50_indices, 5, replace=False)
-                                                                        
-    # Prepare DataFrame for recommendations
-    recs = pd.DataFrame(columns=['movie_title', 'genres_name', 'movie_IMDb_URL'])
-    
-    all_genres = set()
-
-    for movie_recommendation in random_5_indices:
-        # Get the first match row for the current recommendation
-        row = full_data[full_data['movie_id'] == movie_recommendation].iloc[0]
-
-        # Clean IMDb URL just in case
-        imdb_url = str(row['movie_IMDb_URL']).strip()
-        if imdb_url == "nan" or not imdb_url:
-            imdb_url = "https://www.imdb.com"  # Default to some placeholder IMDb URL
-        elif not imdb_url.startswith("http"):
-            imdb_url = "https://" + imdb_url  # Ensure it's a valid URL
-
-        # Split the genres string into a list (if it's a string)
-        genres_list = row['genres_name']
-        if isinstance(genres_list, str):
-            genres_list = [genre.strip() for genre in genres_list.replace("[", "").replace("]", "").replace("'", "").split(",")]
+        # Get indices of the top 50 highest values
+        top_50_indices = np.argsort(rating_prediction)[-50:][::-1]
+        random_5_indices = np.random.choice(top_50_indices, 5, replace=False)
+                                                                            
+        # Prepare DataFrame for recommendations
+        recs = pd.DataFrame(columns=['movie_title', 'genres_name', 'movie_IMDb_URL'])
         
-         # Add genres to the set of all genres
-        all_genres.update(genres_list)
+        all_genres = set()
 
-        # For each genre, add a row for the movie
-        for genre in genres_list:
-            new_row = pd.DataFrame({
-                'movie_title': [row['movie_title']],
-                'genres_name': [genre],
-                'IMDb_URL': [imdb_url],
-                'movie_poster': [row['movie_poster']],
-                'movie_plot': [row['movie_plot']]
-            })
-            # Use pd.concat() to append the new row
-            recs = pd.concat([recs, new_row], ignore_index=True)
+        for movie_recommendation in random_5_indices:
+            # Get the first match row for the current recommendation
+            row = full_data[full_data['movie_id'] == movie_recommendation].iloc[0]
 
-    # Reset index and remove the old index column
-    recs = recs.reset_index(drop=True)
+            # Clean IMDb URL just in case
+            imdb_url = str(row['movie_IMDb_URL']).strip()
+            if imdb_url == "nan" or not imdb_url:
+                imdb_url = "https://www.imdb.com"  # Default to some placeholder IMDb URL
+            elif not imdb_url.startswith("http"):
+                imdb_url = "https://" + imdb_url  # Ensure it's a valid URL
 
-    # Sort recommendations by genre
-    recs_sorted = recs.sort_values(by='genres_name')
+            # Split the genres string into a list (if it's a string)
+            genres_list = row['genres_name']
+            if isinstance(genres_list, str):
+                genres_list = [genre.strip() for genre in genres_list.replace("[", "").replace("]", "").replace("'", "").split(",")]
+            
+            # Add genres to the set of all genres
+            all_genres.update(genres_list)
 
-    return recs_sorted, list(all_genres)
+            # For each genre, add a row for the movie
+            for genre in genres_list:
+                new_row = pd.DataFrame({
+                    'movie_title': [row['movie_title']],
+                    'genres_name': [genre],
+                    'IMDb_URL': [imdb_url],
+                    'movie_poster': [row['movie_poster']],
+                    'movie_plot': [row['movie_plot']]
+                })
+                # Use pd.concat() to append the new row
+                recs = pd.concat([recs, new_row], ignore_index=True)
+
+        # Reset index and remove the old index column
+        recs = recs.reset_index(drop=True)
+
+        # Sort recommendations by genre
+        recs_sorted = recs.sort_values(by='genres_name')
+
+        return recs_sorted, list(all_genres)
+
+    except Exception as e:
+        st.error(f"No Recommendations available at this time.")
+        return pd.DataFrame(), []  # Return empty DataFrame and empty list in case of error
+    
 
 # Function to load profile for user
 def get_user_profile(user_id):
@@ -284,23 +284,26 @@ def main():
 
                 else:
                     recommendations, all_genres = get_recommendations(session_user_id)
-                    st.subheader("Top Recommended Movies")
+                    if recommendations.empty:
+                        st.write("No personalized recommendations available yet.")
+                    else:
+                        st.subheader("Top Recommended Movies")
 
-                    # Dropdown to select genre (single genre selection)
-                    selected_genre = st.selectbox('Select a Genre', ['All Genres'] + all_genres)
+                        # Dropdown to select genre (single genre selection)
+                        selected_genre = st.selectbox('Select a Genre', ['All Genres'] + all_genres)
 
-                    # Filter recommendations based on selected genre
-                    if selected_genre != 'All Genres':
-                        # Filter rows where any genre matches the selected genre
-                        recommendations = recommendations[recommendations['genres_name'].apply(lambda genres: selected_genre in genres)]
+                        # Filter recommendations based on selected genre
+                        if selected_genre != 'All Genres':
+                            # Filter rows where any genre matches the selected genre
+                            recommendations = recommendations[recommendations['genres_name'].apply(lambda genres: selected_genre in genres)]
 
-                    for _, row in recommendations.iterrows():
-                        st.markdown(f"**{row['movie_title']}** - [IMDb Link]({row['IMDb_URL']})")
-                        st.write(f"*{row['movie_plot']}*")
-                        if isinstance(row['movie_poster'], str) and row['movie_poster'].startswith('http'):
-                            st.image(row['movie_poster'], width=100)
-                        else:
-                            st.write("~~No image available~~")
+                        for _, row in recommendations.iterrows():
+                            st.markdown(f"**{row['movie_title']}** - [IMDb Link]({row['IMDb_URL']})")
+                            st.write(f"*{row['movie_plot']}*")
+                            if isinstance(row['movie_poster'], str) and row['movie_poster'].startswith('http'):
+                                st.image(row['movie_poster'], width=100)
+                            else:
+                                st.write("~~No image available~~")
 
         # In the Ratings tab:
         elif tab_selection == "Ratings":
@@ -369,8 +372,8 @@ def main():
                             # Optionally, you can call st.experimental_rerun() here to refresh the page and show the login form
                     else:
                         st.error("Please fill in all the fields.")
+
 if __name__ == "__main__":
     main()
-
 
 
