@@ -16,3 +16,5 @@ You will need Docker installed for this!
 - Test the streamlit app:
 
 Just navigate to http://localhost:8501 from your browser and dream on!
+
+The app is also deployed to Azure Container, and an image is rebuilt via GitHub actions after every push to main. 
